@@ -1,0 +1,51 @@
+mkdir /media/yum-local								#create repo folder so that put RPMs into it
+vi /etc/yum.repo.d/yum-local.repo					#update dir
+createrepo -v /media/yum-local/						#create repo data
+yum install perl-DateTime
+yum install perl-Compress-Raw-Zlib
+yum install perl-XML-Parser
+yum install backuppc
+vi /etc/httpd/conf/httpd.conf
+	User backuppc
+	Group backuppc
+	ServerName backuppc.domain.com:80
+vi /etc/httpd/conf.d/BackupPC.conf
+	allow from all
+htpasswd -c /etc/BackupPC/apache.users backuppc 	#create user&password
+chown -R backuppc:backuppc /etc/BackupPC
+chown -R backuppc:backuppc /var/lib/BackupPC
+service httpd start
+/etc/init.d/backuppc start
+chkconfig httpd on
+chkconfig backuppc on
+service iptables stop #or add iptalbles
+
+
+#config rsyncd
+vi /etc/BackupPC/config.pl
+	$Conf{XferMethod} = 'rsyncd'; 	 						#默认传输方法
+	$Conf{TopDir} = '/var/lib/BackupPC'; 					#备份数据存放位置的路径	 
+	$Conf{RsyncShareName} = ['data'];						#根据客户机的rsyncd.conf来设定,客户端需要备份的目录	
+	$Conf{ServerInitdPath} = 'etc/init.d/backuppc';
+	$Conf{ServerInitdStartCmd} = '$sshPath -q -x -l root start';	#init.d内用来引导服务器的路径
+	$Conf{CgiAdminUsers} = 'backuppc';						#以htpasswd创建的用户
+	$Conf{Language} = 'zh_CN';					# change language to ZH, make sure the zh_CN.pm exist /usr/share/BackupPC/lib/BackupPC/Lang/
+	$Conf{EMailUserDestDomain} = '@test.com';				#备份日志会定期发送给backuppc用户，而没有域名的用户则是无效的邮箱
+	$Conf{BackupFilesExclude} = {
+		'/RECYCLER',
+		'System Volume Information'};						#设置排除目录
+
+service backuppc restart
+
+#设置时间
+tzseletc
+cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime/
+date
+
+#config smb
+vi /etc/BackupPC/config.pl
+
+
+#config rsync
+
+
