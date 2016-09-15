@@ -1,0 +1,174 @@
+#创建本地安装源
+	mkdir /var/yum.local		#把下载来的 rpm 包丢进去
+
+	yum install createrepo		#光盘上有
+	createrepo -v /var/yum.local/
+	yum clean all
+
+#安装必要的软件
+	yum install openssh-clients	#主要是用里面的 scp
+	yum install ntpdate
+
+	yum install corosync
+	yum install pacemaker
+	yum install crmsh
+	yum install drbd84 kmod-drbd84
+	yum install libaio		#depended by mysql
+
+#非必要安装的软件,主要是提供一些图形界面
+	yum install setuptool
+	yum install system-config-network-tui
+	yum install system-config-firewall-tui
+
+	yum install xdm
+	yum groupinstall Desktop
+	yum install gedit 
+	yum install nautilus-open-terminal
+	yum install system-config-users
+	yum install gnome-system-monitor
+	yum install system-config-date 		#如用作时间服务器则必须, 时间服务为 ntpd
+
+#设置 IP 地址： eth0 用于对外服务，eth1 用于 corosync 心跳线， eth2 用于 drbd 数据同步
+	vi /etc/sysconfig/network-scripts/ifcfg-eth0	#192.168.x.x
+	vi /etc/sysconfig/network-scripts/ifcfg-eth1	#10.0.1.x
+	vi /etc/sysconfig/network-scripts/ifcfg-eth2	#10.0.2.x
+	service network restart
+
+#关闭防火墙等，避免安全冲突yum install system-config-firewall-tui
+	service iptables stop
+	chkconfig iptables offyum install system-config-firewall-tui
+	chkconfig ip6tables off
+
+	vi /etc/selinux/config  # set SELINUX=disabled
+
+#修改计算机名，并设置双机互信
+	vi /etc/hosts		#按 corosync 心跳网段地址设置
+	ntpdate 192.168.1.25
+	ssh-keygen -t rsa
+	ssh-copy-id -i .ssh/id_rsa.pub root@node02.local
+
+#配置 corosync，并设置集群间互信
+	cd /etc/corosync/
+	cp corosync.conf.example corosync.conf
+	vi corosync.conf
+
+	mv /dev/{random,random.bak}
+	ln -s /dev/urandom /dev/random
+	corosync-keygen
+
+	scp authkey corosync.conf root@node02.local:/etc/corosync/
+
+#启动集群服务
+	ssh node02 "service corosync start"
+	service corosync start
+
+	grep -e "Corosync Cluster Engine" -e "configuration file" /var/log/cluster/corosync.log 
+	grep TOTEM /var/log/cluster/corosync.log
+	grep ERROR: /var/log/cluster/corosync.log
+	grep pcmk_startup /var/log/cluster/corosync.log 
+
+	crm status
+
+#配置 drbd 服务
+	vi /etc/drbd.d/global_common.conf 	#注释掉其中几行，稍微添加些内容
+	cd /etc/drbd.d/
+	vi web.res
+	scp global_common.conf web.res node02:/etc/drbd.d/
+
+	#service drbd stopped
+	drbdadm create-md web		#在两台机器上分别运行
+	service drbd start		#在两台机器上分别运行
+
+	drbdadm -- --overwrite-data-of-peer primary web #同步，仅主机上运行
+	drbd-overview
+	mke2fs -j /dev/drbd0
+	service drbd stop		#任何准备交由集群管理的服务，必须不能自启动
+	chkconfig drbd off
+
+#将 drbd 服务交由 pacemaker 管理
+	crm configure
+		property stonith-enabled=false
+		property no-quorum-policy=ignore
+
+		primitive mydrbd ocf:linbit:drbd params drbd_resource=web op start timeout=240 op stop timeout=100 op monitor role=Master interval=20 timeout=30 op monitor role=Slave interval=30 timeout=30
+
+		ms ms_mydrbd mydrbd meta master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
+
+		primitive safestore ocf:heartbeat:Filesystem params device=/dev/drbd0 directory=/safedisk fstype=ext3 op start timeout=60 op stop timeout=60
+
+		colocation safestore_with_ms_mydrbd inf: safestore ms_mydrbd:Master
+		order safestore_after_ms_mydrbd mandatory: ms_mydrbd:promote safestore:start
+
+		primitive vip ocf:heartbeat:IPaddr params ip=192.168.1.229 op monitor timeout=20s interval=60s
+		colocation vip_with_ms_mydrbd inf: ms_mydrbd:Master vip
+	crm configure commit
+
+	crm status
+
+#安装 mysql，安装好 node01 后，通过 standby 切换主辅后，在 node02 安装
+	drbd-overview  #recheck if started normally
+
+	tar xf mysql-5.6.16-linux-glibc2.5-x86_64.tar.gz -C /usr/local/
+	mv mysql-5.6.16-linux-glibc2.5-x86_64 mysql
+
+	groupadd -g 3306 mysql
+	useradd -u 3306 -g mysql -r mysql
+	id mysql
+
+	mkdir /safedisk/mysql/data
+	chown -R mysql:mysql /safedisk/mysql
+	chown -R mysql:mysql /usr/local/mysql
+	chown -R mysql:mysql data
+
+	cd /usr/local/mysql/
+	cp support-files/mysql.server /etc/init.d/mysql
+	cp support-files/my-default.cnf /etc/my.cnf
+	vi /etc/my.cnf 		# change datadir = /safedisk/mysql/data
+	scp /etc/my.cnf node02:/etc/
+
+	scripts/mysql_install_db --datadir=/safedisk/mysql/data/ --basedir=/usr/local/mysql --user=mysql
+	bin/mysqld_safe --user=mysql &
+	bin/mysql_secure_installation 	# node02 安装时此条不必运行，因相关配置已经同步过来了
+
+	bin/mysql -u root -p
+
+	vi /etc/profile
+	source /etc/profile
+
+	ln -sv /usr/local/jdk1.7.0_80 /usr/local/java
+	ln -sv /usr/local/tomcat7 /usr/local/tomcat
+
+	mv /usr/local/tomcat/webapps /safedisk/tomcat/
+	ln -sv /safedisk/tomcat/webapps /usr/local/tomcat/webapps
+	service tomcat start
+
+	service tomcat stop
+	chkconfig tomcat off
+	service mysql stop
+	chkconfig mysql off
+
+#将 mysql tomcat 配置进 pacemaker
+	crm configure
+		primitive mysqld lsb:mysql
+		colocation mysqld_with_safestore inf: mysqld safestore
+		order mysqld_after_vip_after_safestore mandatory: safestore vip mysqld
+		#location mysql_on_node01 mysqld inf: node01.local 	#不能直接漂回去，会导致脑裂的
+
+		primitive tomcatd lsb:tomcat op start timeout=60 op stop timeout=120 op monitor timeout=30
+		order tomcatd_after_mysqld mandatory: mysqld tomcatd
+
+		group mysqlip vip mysqld tomcatd
+	crm configure commit
+
+#that's all
+
+
+# drbd 脑裂处理
+	secondary:
+		drbdadm secondary web
+		drbdadm --discard-my-data connect web
+	primary:
+		drbdadm connect web
+		drbdadm -- --overwrite-data-of-peer primary web
+
+

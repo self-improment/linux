@@ -1,0 +1,39 @@
+node node01.local \
+        attributes standby=off
+node node02.local \
+        attributes standby=off
+primitive mysqld lsb:mysql
+primitive mysqldrbd ocf:linbit:drbd \
+        params drbd_resource=web \
+        op start timeout=240 interval=0 \
+        op stop timeout=100 interval=0 \
+        op monitor role=Master interval=20 timeout=30 \
+        op monitor role=Slave interval=30 timeout=30
+primitive mystore Filesystem \
+        params device="/dev/drbd0" directory="/mydata" fstype=ext3 \
+        op start timeout=60 interval=0 \
+        op stop timeout=60 interval=0
+primitive tomcatd lsb:tomcat \
+        op start timeout=60 interval=0 \
+        op stop timeout=120 interval=0 \
+        op monitor timeout=30 interval=0
+primitive vip IPaddr \
+        params ip=192.168.1.228 \
+        op monitor timeout=20s interval=60s
+group mysqlip vip mysqld tomcatd
+ms ms_mysqldrbd mysqldrbd \
+        meta master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true target-role=Started is-managed=true
+location mysql_on_node01 mysqld inf: node01.local
+order mysqld_after_mystore Mandatory: mystore mysqlip
+colocation mysqld_with_mystore inf: mysqlip mystore
+order mystore_after_mysqldrbd Mandatory: ms_mysqldrbd:promote mystore:start
+colocation mystore_with_ms_mysqldrbd inf: mystore ms_mysqldrbd:Master
+order tomcatd_after_mysqld Mandatory: mysqld tomcatd
+order vip_before_mysqld Mandatory: vip mysqld
+property cib-bootstrap-options: \
+        dc-version=1.1.11-97629de \
+        cluster-infrastructure="classic openais (with plugin)" \
+        expected-quorum-votes=2 \
+        stonith-enabled=false \
+        no-quorum-policy=ignore
+

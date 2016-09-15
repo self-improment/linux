@@ -1,0 +1,360 @@
+mkdir /var/yum.local
+uname -n
+vi /etc/hosts
+mkdir /media/workspace
+mkdir /media/cdrom
+vi /etc/yum.repos.d/CentOS-Base.repo 
+yum grouplist
+yum install openssh-clients
+yum install createrepo
+yum install ntpdate
+createrepo -v /var/yum.local/
+yum clean all
+yum grouplist
+ssh-keygen -t rsa
+ssh-copy-id -i .ssh/id_rsa.pub root@node02.local
+ssh-copy-id -i .ssh/id_rsa.pub root@node01.local
+ntpdate 192.168.1.25
+service iptables stop
+vi /etc/selinux/config 
+chkconfig iptables off
+chkconfig ip6tables off
+yum grouplist
+yum install corosync
+yum install pacemaker
+yum install crmsh
+yum install drbd84 kmod-drbd84
+umount /media/cdrom/
+umount /media/workspace/
+cat ~/.bash_his
+find / -name ".bash_history"
+umount /media/workspace/
+yum clean all
+find / -name ".bash_history"
+cat ~/.bash_history 
+vi ~/.bash_history 
+exit
+vi /etc/sysconfig/network-scripts/ifcfg-eth1
+vi /etc/sysconfig/network-scripts/ifcfg-eth2
+vi /etc/sysconfig/network-scripts/ifcfg-eth1
+service network restart
+ping 10.0.1.1
+ping 10.0.2.1
+exit
+vi /etc/sysconfig/network-scripts/ifcfg-eth0
+service network restart
+ping 192.168.1.226
+fdisk -l
+reboot
+fdisk -l
+df -h
+drbdadm create-md web
+service drbd start
+drbd-overview
+cd /drbd
+drbd-overview
+umount /drbd/
+drbdadm secondary web
+drbd-overview
+drbdadm primary web
+drbd-overview
+umount /drbd/
+reboot
+mkdir /drbd
+drbd-overview
+drbdadm primary web
+drbd-overview
+mount /dev/drbd0 /drbd/
+ls /drbd/
+cd /usr/local/
+mkdir software
+ls
+cd software/
+tar xf mysql-5.6.16-linux-glibc2.5-x86_64.tar.gz -C /usr/local/
+cd ..
+ls
+mv mysql-5.6.16-linux-glibc2.5-x86_64 mysql
+groupadd -g 3306 mysql
+useradd -u 3306 -g mysql -r mysql
+id mysql
+drbd-overview
+drbdadm secondary web
+ls /drbd
+umount /drbd
+drbd-overview
+drbdadm secondary web
+ls /drbd
+drbdadm primary web
+drbd-overview
+mkdir /mydata
+mount /dev/drbd0 /mydata/
+cd /mydata/
+ll
+umount /mydata
+drbd-overview
+cd /mydata/
+ls
+drbd-overview
+drbdadm secondary web
+drbd-overview
+drbdadm secondary web
+service drbd stop
+lsof(8)
+lsof
+drbdadm secondary web
+reboot
+mount -t cifs -o username="user",password="admin.2008" //192.168.1.25/gongxiang /media/workspace/
+mount -t iso9660 -o loop /media/workspace/software/iso/CentOS-6.7-X86_64-bin-DVD1.iso /media/cdrom/
+yum install libaio
+yum install perl
+service drbd start
+drbd-overview
+drbdadm primary web
+drbd-overview
+ls /mydata/
+mount /dev/drbd0 /mydata/
+ls /mydata/
+ll /mydata/
+service mysql start
+exit
+service mysql start
+service mysql stop
+chkconfig mysql off
+chkconfig mysql --list
+drbd-overview
+umount /mydata/
+drbd-overview
+service drbd stop
+chkconfig drbd off
+exit
+reboot
+crm
+crm_mon
+service drbd start
+service drbd stop
+ls /usr/lib/ocf/resource.d/linbit/drbd
+vi /usr/lib/ocf/resource.d/linbit/drbd
+crm ra classes
+crm ra list ocf inbit
+crm ra list ocf linbit
+crm ra info ocf:linbit:drbd
+crm status
+service corosync stop
+restart
+reboot
+vi /etc/corosync/corosync.conf
+service corosync stop
+reboot
+crm status
+reboot
+service corosync start
+ping 192.168.1.226
+ssh "service corosync restart"
+ssh ls
+ssh
+ssh node01 ls
+crm status
+service drbd start
+umount /mydata/
+drbdadm secondary web
+crm status
+service drbd stop
+reboot
+crm ra list lsb
+crm status
+reboot
+service corosync start
+crm status
+reboot
+service drbd start
+drbd-overview
+service drbd stop
+ls /mydata/
+service drbd start
+service drbd stop
+reboot
+crm status
+reboot
+crm status
+mount
+crm status
+reboot
+service corosync start
+crm status
+crm ra list ocf
+crm ra list ocf:heartbeat
+crm ra list heartbeat
+crm ra list ocf heartbeat
+crm status
+reboot
+service corosync start
+crm status
+reboot
+crm status
+service corosync start
+crm status
+reboot
+service corosync start
+crm status
+mount
+/usr/local/mysql/bin/mysql -u root
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+exit
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+ls /mydata/
+ifconfig
+reboot
+service corosync start
+service corosync stop
+service corosync start
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+ifconfig
+crm status
+ls /mydata/
+crm configure show
+ifconfig
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+ls /mydata
+crm status
+crm node standby
+crm node online
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+ls /mydata/
+crm node standby
+crm status
+reboot
+crm status
+crm node online
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+ls /mydata/data/
+crm status
+crm node standby
+crm status
+crm node online
+crm status
+ls /mydata/
+/usr/local/mysql/bin/mysql -u root -p
+/usr/local/mysql/bin/mysql -u guoli -p
+crm status
+crm node standby
+crm status
+crm node standby
+crm status
+reboot
+ll
+top
+crm status
+exit
+crm status
+crm node online
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+crm node standby
+crm status
+crm node online
+crm status
+ls /mydata/data/
+ls /mydata/data/test/
+crm status
+crm node standby
+crm status
+drbd-overview
+vi /etc/drbd.d/web.res 
+crm node online
+reboot
+vi /etc/corosync/corosync.conf
+service corosync start
+crm status
+ls /mydata/data/
+ls /mydata/data/test/
+crm node standby
+crm status
+crm node online
+crm status3
+crm status
+drbd-overview
+crm ra list
+crm ra list ocf heartbeat
+crm ra list ocf linbit
+drbd-overview
+crm status
+drbd-overview
+crm node standby
+service corosync stop
+drbd-overview
+serivce drbd restart
+service drbd restart
+drbd-overview
+ping 192.168.1.226
+ping 10.0.1.1
+vi /etc/drbd.d/web.res 
+service drbd restart
+drbd-overview
+vi /etc/drbd.d/web.res 
+service drbd restart
+drbd-overview
+vi /etc/drbd.d/web.res 
+service drbd restart
+drbd-overview
+service drbd stop
+vi /etc/drbd.d/web.res 
+drbdadm create-md web
+service drbd start
+drbd-overview
+ls /mydata/
+drbd-overview
+vi /etc/corosync/corosync.conf
+drbd-overview
+service drbd stop
+service corosync start
+crm status
+crm node online
+crm status
+/usr/local/mysql/bin/mysql -u root -p
+crm status
+crm node standby
+crm status
+crm node online
+crm status
+ls /mydata/
+crm status
+crm
+crm status
+vi /etc/profile
+source /etc/profile
+echo $TOMCAT_HOME
+crm status
+ls /mydata/
+mv /usr/local/tomcat/webapps /dev/null
+mv -rf /usr/local/tomcat/webapps /dev/null
+rm -rf /usr/local/tomcat/webapps
+ln -sv /mydata/tomcat/webapps /usr/local/tomcat/webapps
+ls /usr/local/tomcat/webapps/
+service tomcat start
+service tomcat stop
+crm status
+crm ra list ocf
+crm ra list ocf tomcat
+vi /etc/init.d/tomcat 
+crm status
+crm meta ocf tomcat
+crm ra meta ocf tomcat
+crm ra meta ocf:tomcat
+crm status
+crm configure edit
+crm status
+crm ra meta lsb
+crm ra list lsb
+crm status
+ls /mydata/
+crm status
+reboot

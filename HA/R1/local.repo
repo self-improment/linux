@@ -1,0 +1,5 @@
+[local_server]
+name=this is a local repo
+baseurl=file:///var/yum.local
+enabled=1
+gpgcheck=0
