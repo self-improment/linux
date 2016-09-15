@@ -1,0 +1,259 @@
+一、Zabbix简介
+
+    Zabbix是一个基于WEB界面的提供分布式系统监视以及网络监视功能的企业级的开源解决方案。
+
+    Zabbix能监视各种网络参数，保证服务器系统的安全运营；并提供灵活的通知机制以让系统管理员快速定位/解决存在的各种问题。
+
+    Zabbix由2部分构成，zabbix server与可选组件zabbix agent。
+
+    Zabbix server可以通过SNMP，zabbix agent，ping，端口监视等方法提供对远程服务器/网络状态的监视，数据收集等功能，可以运行在众多平台上。
+
+
+#config repos
+vi /etc/yum.repo.d/CentOS-Base.repo
+mount -t iso9660 -o loop /dev/cdrom /media/cdrom
+yum groupinstall "Development tools"
+cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/yum-local.repo
+vi /etc/yum.repos.d/yum-local.repo
+yum install createrepo
+createrepo -v /media/yum-local
+
+
+二、基础组件安装
+yum --enablerepo=yum-local install httpd mysql-server mysql-devel net-snmp-devel gcc php54w php54w-gd php54w-bcmath php54w-xml php54w-ldap php54w-mbstring php54w-mysql php54w-cli php54w-common php54w-pdo curl curl-devel
+groupadd zabbix
+useradd -g zabbix zabbix
+
+三、数据库配置
+service mysqld start
+mysql -u root -p 			#password: n/a
+	 create database zabbix character set utf8;
+	 insert into mysql.user(Host,User,Password) values('localhost','zabbix',password('zabbix')); 
+	 flush privileges;
+	 grant all on zabbix.* to 'zabbix'@'127.0.0.1' identified by 'zabbix' with grant option;
+	 flush privileges;
+
+
+
+四、zabbix的安装和配置
+
+① 进行编译安装
+tar -zxvf zabbix-2.4.8.tar.gz
+cd zabbix-2.4.8
+./configure --with-mysql=/usr/bin/mysql_config --with-net-snmp --with-libcurl --enable-server --enable-agent --enable-proxy --prefix=/usr/local/(zabbix)
+
+    --prefix----> 指定zabbix安装目录
+    --enable-server----> 支持zabbix服务器
+    --enable-agent----> 支持zabbix代理
+    --enable-proxy----> 支持zabbix代理服务器
+    --with-libcurl----> 使用curl包
+    --with-net-snmp----> 使用net-snmp软件包,选择性地指定路径NET-SNMP配置
+    --with-mysql=/usr/bin/mysql_config 使用MySQL客户端库可以选择指定路径mysql_config
+
+make
+make install
+
+
+② 导入数据库
+mysql -u root -p
+	use zabbix;
+	source /root/zabbix-2.4.5/database/mysql/schema.sql
+	source /root/zabbix-2.4.5/database/mysql/data.sql
+	source /root/zabbix-2.4.5/database/mysql/images.sql
+	\quit
+				#注:导入请按以上顺序导入，否则会出现错误情况。
+
+
+
+③ 添加服务器对应的端口(可省略)
+ [root@localhost ~]# cat /etc/services |grep zabbix
+zabbix-agent    10050/tcp               # Zabbix Agent      //客户端
+zabbix-agent    10050/udp               # Zabbix Agent
+zabbix-trapper  10051/tcp               # Zabbix Trapper    //服务端
+zabbix-trapper  10051/udp               # Zabbix Trapper
+
+
+
+④ 拷贝相关的配置文件到/etc下并进行相关配置修改
+mkdir -p /etc/zabbix
+cp -r zabbix-2.4.8/conf/* /etc/zabbix/
+chown -R zabbix:zabbix /etc/zabbix
+ln -s /usr/local/zabbix/etc /etc/zabbix/
+ln -s /usr/local/zabbix/bin/* /usr/bin/			ln -s /usr/local/bin/* /usr/bin/
+ln -s /usr/local/zabbix/sbin/* /usr/sbin/			ln -s /usr/local/sbin/* /usr/sbin/
+
+ln -s /usr/local/zabbix/sbin/* /usr/local/sbin/
+ln -s /usr/local/zabbix/bin/* /usr/local/bin/
+ln -s /usr/local/zabbix/etc/* /usr/local/etc/
+
+
+
+
+a.修改zabbix_server.conf
+vi /etc/zabbix/zabbix_server.conf
+
+修改后如下:
+cat  /etc/zabbix/zabbix_server.conf|grep -n ^[^#]
+	30:LogFile=/tmp/zabbix_server.log   ##日志文件地址
+	68:DBHost=localhost                    ##数据库主机
+	78:DBName=zabbix                        ##数据库用户名
+	94:DBUser=zabbix                        ##数据库用户名
+	102:DBPassword=zabbix                  ##数据库密码
+	282:ListenIP=127.0.0.1                    ##数据库IP地址
+	425:AlertScriptsPath=/usr/local/zabbix/share/zabbix/alertscripts 	##zabbix运行脚本存放目录
+
+
+
+b.修改zabbix_agentd.conf
+vi /etc/zabbix/zabbix_agentd.conf
+
+修改后如下：
+cat  /etc/zabbix/zabbix_agentd.conf|grep -n ^[^#]
+	11:PidFile=/tmp/zabbix_agentd.pid            ##进程PID
+	21:LogFile=/tmp/zabbix_agentd.log            ##日志保存位置
+	59:EnableRemoteCommands=1                 ##允许执行远程命令
+	81:Server=127.0.0.1                   ##agent端的ip
+	122:ServerActive=127.0.0.1
+	133:Hostname=Zabbix server          ##必须与zabbix创建的hostname相同
+	252:Include=/usr/local/etc/zabbix_agentd.conf.d/
+	265:UnsafeUserParameters=1            ##启动自定义key
+
+
+
+五、修改PHP相关参数
+vi /etc/php.ini
+	384 max_execution_time = 300
+	394 max_input_time = 300
+	405 memory_limit = 128M
+	800 upload_max_filesize = 2M
+	878 date.timezone = Asia/Shanghai
+	672 post_max_size = 28M
+
+
+
+六、配置web站点
+①copy html files
+cd zabbix-2.4.8/
+cp -r frontends/php /var/www/html/zabbix
+
+②修改httpd.conf的参数
+vim /etc/httpd/conf/httpd.conf
+ServerName 127.0.0.1
+1003:<VirtualHost *:80>
+1005:DocumentRoot "/var/www/html"
+1006:ServerName 192.168.1.228
+1009:</VirtualHost>
+
+③关闭SELinux：
+
+a、临时关闭（不用重启机器）：
+
+# setenforce 0                       ##设置SELinux 成为permissive模式  （关闭SELinux）
+
+# setenforce 1                       ## 设置SELinux 成为enforcing模式     （开启SELinux）
+
+b、修改配置文件需要重启机器：
+
+# vi /etc/selinux/config 
+
+将SELINUX=enforcing 改为SELINUX=disabled
+
+需重启机器
+
+
+
+七、安装web界面
+service mysqld start
+在浏览器中输入http://127.0.0.1/zabbix进入zabbix的web配置页面=====》
+(如全部OK)NEXT=====》
+配置MySQL数据库信息，并点击“Test connection”按键，如OK====》NEXT=====》
+默认，直接NEXT=====》
+默认，直接NEXT=====》出现错误，提示Fail
+按提示点击“Download configuration file”按钮，并将下载的zabbix.conf.php保存到 /var/www/html/zabbix/conf/下，点击“Retry”按钮重试=====》
+显示OK，点击“Finish”按钮完成安装操作。
+Zabbix的默认账号为admin，密码为zabbix。
+
+八、添加开机启动脚本
+cd zabbix-2.4.8/
+cp misc/init.d/fedora/core5/zabbix_server /etc/rc.d/init.d/zabbix_server
+cp misc/init.d/fedora/core5/zabbix_server /etc/rc.d/init.d/zabbix_agentd
+chmod u+x /etc/rc.d/init.d/zabbix_server
+chmod u+x /etc/rc.d/init.d/zabbix_agentd
+chkconfig zabbix_server on 
+chkconfig zabbix_agentd on
+/usr/local/sbin/zabbix_server start
+
+
+
+Windows客户端安装
+1.新建一个文件夹，比如C:\zabbix
+2.复制zabbix_agentd windows版到此文件夹下 复制zabbix_agentd.win.conf 到zabbix目录下
+3.在zabbix目录下新建一个log文件，zabbix_agentd.log
+4.配置zabbix_agentd.win.conf
+	LogFile=c:\zabbix\zabbix_agentd.log
+	Server=服务器地址
+	Active Server=服务器地址
+	Hostname=客户端名称
+	
+5.在zabbix目录下打开cmd，输入 zabbix_agentd -c c:\zabbix\zabbix_agentd.win.conf -i
+	-c:指定配置文件所在位置
+	-i:安装客户端
+	-s:启动客户端
+	-x:停止客户端
+	-d:卸载客户端
+6.在services.msc里启动zabbix_agentd服务
+
+
+设置外部邮件通知 
+service postfex stop
+chkconfig postfex off
+vi /etc/mail.rc
+	set from = destan@sina.com smtp=smtp.sina.com
+	set smtp-auth-user = destan@sina.com smtp-auth-password=
+	set smtp-auth = login
+
+cd /usr/local/zabbix/share/zabbix/alertscripts
+yum install dos2unix
+vi sendmail.sh
+	#!/bin/sh
+	#export LANG=zh_CN.UTF-8
+	FILE=/tmp/mailtmp.txt
+	echo "S3" >$FILE
+	/usr/bin/dos2unix -k $FILE			#将mailtmp.txt转换成unix格式，否则发送邮件内容为空，会有附件 可通过file /tmp/mailtmp.txt对比查看转换之前之后的变化
+	/bin/mail -s "$2" $1 < $FILE
+
+touch /tmp/mailtmp.txt 
+chown zabbix:zabbix /tmp/mailtmp.txt  #if not success, please switch user such as "zabbix" and touch it again.
+
+fping配置
+
+1）需要用到fping的支持，系统本身是没有这个工具的，所以需要先安装fping
+由于 zabbix 使用 fping 替代了ping 作为 icmp 的工具，所以要安装 fping
+可以从 http://fping.sourceforge.net/ 上下载 fping 的源代码，解压编译安装。
+进入 fping 解压后的源代码目录
+./configure 
+makeinstall 
+默认是安装到/usr/local/sbin/fping
+修改/etc/zabbix/zabbix_server.conf
+
+FpingLocation=/usr/local/sbin/fping 
+
+2）修改fping的权限  ##这一步很重要
+
+chown root:root /usr/local/sbin/fping
+chmod u+s /usr/local/sbin/fping
+
+笔者就是在这失误了，笔者直接chmod 777 fping 的
+结果 su - zabbix后
+运行  /usr/local/sbin/fping -s XX.XX.XX.XX报错了
+/usr/local/sbin/fping: can't create raw socket (must run as root?) : Operation not permitted
+因此还需要大家细心那。
+3）测试
+测试看icmpping是否能够使用，可以在服务器上直接用命令
+su - zabbix
+fping  XX.XX.XX.XX
+如果返回 XX.XX.XX.XX is alive，那说明是OK的了
+4)绘图
+找到zabbix自带模板Template ICMP Ping
+选择Graphs-Create Graph
+
